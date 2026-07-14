@@ -13,8 +13,8 @@ const (
 )
 
 var (
-	errInvalidRAProfileEngine = errors.New(invalidRAProfileEngineMessage)
-	errInvalidRAProfileRole   = errors.New(invalidRAProfileRoleMessage)
+	errInvalidRAProfileEngine = errors.New("invalid RA profile engine attribute")
+	errInvalidRAProfileRole   = errors.New("invalid RA profile role attribute")
 )
 
 func getRAProfileEngineName(attributes []model.Attribute) (string, error) {
