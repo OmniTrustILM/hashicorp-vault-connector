@@ -36,3 +36,4 @@ build/
 setenv.sh
 
 .mirrord/
+.worktrees/
