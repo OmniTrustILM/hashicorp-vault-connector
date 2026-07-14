@@ -24,6 +24,14 @@ HashiCorp Vault `Connector` allows you to perform the following operations:
 `Discovery Provider`
 - Discover certificates
 
+## RA profile authorization
+
+RA profile engine and role lists are extensible because connector discovery may
+not return every usable value. RA profile authors can therefore select values
+outside the current predefined options. Vault ACLs attached to the authority's
+credentials are the authorization boundary; the connector does not enforce a
+separate engine or role allowlist.
+
 ## Database requirements
 
 HashiCorp Vault `Connector` requires the PostgreSQL database version 12+.
