@@ -1220,6 +1220,7 @@ components:
       - label
       - list
       - multiSelect
+      - extensibleList
       - readOnly
       - required
       - visible
@@ -1257,6 +1258,10 @@ components:
         multiSelect:
           type: boolean
           description: Boolean determining if the Attribute can have multiple values
+          default: false
+        extensibleList:
+          type: boolean
+          description: Boolean determining if a list Attribute can have values other than predefined options
           default: false
       description: Properties of the Attributes
     DateAttributeContent:

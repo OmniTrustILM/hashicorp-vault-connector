@@ -23,6 +23,9 @@ type DataAttributeProperties struct {
 
 	// Boolean determining if the Attribute can have multiple values
 	MultiSelect bool `json:"multiSelect"`
+
+	// Boolean determining if a list Attribute can have values other than predefined options
+	ExtensibleList bool `json:"extensibleList"`
 }
 
 // AssertDataAttributePropertiesRequired checks if the required fields are not zero-ed
