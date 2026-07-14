@@ -28,9 +28,10 @@ HashiCorp Vault `Connector` allows you to perform the following operations:
 
 RA profile engine and role lists are extensible because connector discovery may
 not return every usable value. RA profile authors can therefore select values
-outside the current predefined options. Vault ACLs attached to the authority's
-credentials are the authorization boundary; the connector does not enforce a
-separate engine or role allowlist.
+outside the current predefined options. The connector rejects malformed
+attribute shapes and unsafe Vault path syntax, but does not enforce a separate
+engine or role allowlist. Vault ACLs attached to the authority's credentials
+remain the authorization boundary.
 
 ## Database requirements
 
