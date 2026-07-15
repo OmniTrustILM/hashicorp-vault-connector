@@ -34,8 +34,12 @@ func NewCertificateManagementAPIService(authorityRepo *db.AuthorityRepository, l
 // IdentifyCertificate - Identify Certificate
 func (s *CertificateManagementAPIService) IdentifyCertificate(ctx context.Context, uuid string, certificateIdentificationRequestDto model.CertificateIdentificationRequestDto) (model.ImplResponse, error) {
 	raAttributes := certificateIdentificationRequestDto.RaProfileAttributes
-	engineData := model.GetAttributeFromArrayByUUID(model.RA_PROFILE_ENGINE_ATTR, raAttributes).GetContent()[0].GetData().(map[string]any)
-	engineName := engineData["engineName"].(string)
+	engineName, err := getRAProfileEngineName(raAttributes)
+	if err != nil {
+		return model.Response(http.StatusBadRequest, model.ErrorMessageDto{
+			Message: invalidRAProfileEngineMessage,
+		}), nil
+	}
 	authority, err := s.authorityRepo.FindAuthorityInstanceByUUID(uuid)
 	if err != nil {
 		return model.Response(http.StatusNotFound, model.ErrorMessageDto{
@@ -89,9 +93,18 @@ func (s *CertificateManagementAPIService) IssueCertificate(ctx context.Context, 
 	}
 
 	raAttributes := certificateSignRequestDto.RaProfileAttributes
-	engineData := model.GetAttributeFromArrayByUUID(model.RA_PROFILE_ENGINE_ATTR, raAttributes).GetContent()[0].GetData().(map[string]any)
-	engineName := engineData["engineName"].(string)
-	role := model.GetAttributeFromArrayByUUID(model.RA_PROFILE_ROLE_ATTR, raAttributes).GetContent()[0].GetData().(string)
+	engineName, err := getRAProfileEngineName(raAttributes)
+	if err != nil {
+		return model.Response(http.StatusBadRequest, model.ErrorMessageDto{
+			Message: invalidRAProfileEngineMessage,
+		}), nil
+	}
+	role, err := getRAProfileRoleName(raAttributes)
+	if err != nil {
+		return model.Response(http.StatusBadRequest, model.ErrorMessageDto{
+			Message: invalidRAProfileRoleMessage,
+		}), nil
+	}
 	authority, err := s.authorityRepo.FindAuthorityInstanceByUUID(uuid)
 	if err != nil {
 		return model.Response(http.StatusNotFound, model.ErrorMessageDto{
@@ -182,9 +195,18 @@ func (s *CertificateManagementAPIService) RenewCertificate(ctx context.Context, 
 	}
 
 	raAttributes := certificateRenewRequestDto.RaProfileAttributes
-	engineData := model.GetAttributeFromArrayByUUID(model.RA_PROFILE_ENGINE_ATTR, raAttributes).GetContent()[0].GetData().(map[string]any)
-	engineName := engineData["engineName"].(string)
-	role := model.GetAttributeFromArrayByUUID(model.RA_PROFILE_ROLE_ATTR, raAttributes).GetContent()[0].GetData().(string)
+	engineName, err := getRAProfileEngineName(raAttributes)
+	if err != nil {
+		return model.Response(http.StatusBadRequest, model.ErrorMessageDto{
+			Message: invalidRAProfileEngineMessage,
+		}), nil
+	}
+	role, err := getRAProfileRoleName(raAttributes)
+	if err != nil {
+		return model.Response(http.StatusBadRequest, model.ErrorMessageDto{
+			Message: invalidRAProfileRoleMessage,
+		}), nil
+	}
 	authority, err := s.authorityRepo.FindAuthorityInstanceByUUID(uuid)
 	if err != nil {
 		return model.Response(http.StatusNotFound, model.ErrorMessageDto{
@@ -257,6 +279,12 @@ func (s *CertificateManagementAPIService) RenewCertificate(ctx context.Context, 
 
 // RevokeCertificate - Revoke Certificate
 func (s *CertificateManagementAPIService) RevokeCertificate(ctx context.Context, uuid string, certRevocationDto model.CertRevocationDto) (model.ImplResponse, error) {
+	engineName, err := getRAProfileEngineName(certRevocationDto.RaProfileAttributes)
+	if err != nil {
+		return model.Response(http.StatusBadRequest, model.ErrorMessageDto{
+			Message: invalidRAProfileEngineMessage,
+		}), nil
+	}
 	authority, err := s.authorityRepo.FindAuthorityInstanceByUUID(uuid)
 	if err != nil {
 		return model.Response(http.StatusNotFound, model.ErrorMessageDto{
@@ -292,8 +320,8 @@ func (s *CertificateManagementAPIService) RevokeCertificate(ctx context.Context,
 
 	}
 
-	s.log.With(zax.Get(ctx)...).Info("Revoking certificate", zap.String("serial_number", serialNumber), zap.String("reason", string(certRevocationDto.Reason)))
-	_, err = client.Secrets.PkiRevoke(ctx, revokeRequest)
+	s.log.With(zax.Get(ctx)...).Info("Revoking certificate", zap.String("serial_number", serialNumber), zap.String("reason", string(certRevocationDto.Reason)), zap.String("engine_name", engineName))
+	_, err = client.Secrets.PkiRevoke(ctx, revokeRequest, vault2.WithMountPath(engineName+"/"))
 	if err != nil {
 		s.log.With(zax.Get(ctx)...).Error(err.Error())
 		return model.Response(http.StatusBadRequest, model.ErrorMessageDto{

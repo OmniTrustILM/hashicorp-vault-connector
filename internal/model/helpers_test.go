@@ -72,7 +72,8 @@ const (
 "required": false,
 "readOnly": false,
 "list": false,
-"multiSelect": false
+"multiSelect": false,
+"extensibleList": false
 }
 }
 ]	

@@ -112,6 +112,12 @@ func (s *AuthorityManagementAPIService) GetAuthorityInstance(ctx context.Context
 
 // GetCaCertificates - Get the Authority Instance&#39;s certificate chain
 func (s *AuthorityManagementAPIService) GetCaCertificates(ctx context.Context, uuid string, caCertificatesRequestDto model.CaCertificatesRequestDto) (model.ImplResponse, error) {
+	engineName, err := getRAProfileEngineName(caCertificatesRequestDto.RaProfileAttributes)
+	if err != nil {
+		return model.Response(http.StatusBadRequest, model.ErrorMessageDto{
+			Message: invalidRAProfileEngineMessage,
+		}), nil
+	}
 	authority, err := s.authorityRepo.FindAuthorityInstanceByUUID(uuid)
 	if err != nil {
 		return model.Response(http.StatusNotFound, model.ErrorMessageDto{
@@ -127,8 +133,6 @@ func (s *AuthorityManagementAPIService) GetCaCertificates(ctx context.Context, u
 	}
 
 	s.log.With(zax.Get(ctx)...).Info("Getting CA certificates", zap.String("authority", authority.Name), zap.String("uuid", authority.UUID))
-	engineData := model.GetAttributeFromArrayByUUID(model.RA_PROFILE_ENGINE_ATTR, caCertificatesRequestDto.RaProfileAttributes).GetContent()[0].GetData().(map[string]any)
-	engineName := engineData["engineName"].(string)
 	//https://github.com/hashicorp/vault/issues/919 do not use PkiReadCaChainPem
 	certificateCaResponse, err := client.Secrets.PkiReadCertCaChain(ctx, vault2.WithMountPath(engineName+"/"))
 
@@ -183,6 +187,12 @@ func (s *AuthorityManagementAPIService) GetConnection(ctx context.Context, uuid 
 
 // GetCrl - Get the latest CRL for the Authority Instance
 func (s *AuthorityManagementAPIService) GetCrl(ctx context.Context, uuid string, certificateRevocationListRequestDto model.CertificateRevocationListRequestDto) (model.ImplResponse, error) {
+	engineName, err := getRAProfileEngineName(certificateRevocationListRequestDto.RaProfileAttributes)
+	if err != nil {
+		return model.Response(http.StatusBadRequest, model.ErrorMessageDto{
+			Message: invalidRAProfileEngineMessage,
+		}), nil
+	}
 	authority, err := s.authorityRepo.FindAuthorityInstanceByUUID(uuid)
 	if err != nil {
 		return model.Response(http.StatusNotFound, model.ErrorMessageDto{
@@ -197,8 +207,6 @@ func (s *AuthorityManagementAPIService) GetCrl(ctx context.Context, uuid string,
 		}), nil
 	}
 
-	engineData := model.GetAttributeFromArrayByUUID(model.RA_PROFILE_ENGINE_ATTR, certificateRevocationListRequestDto.RaProfileAttributes).GetContent()[0].GetData().(map[string]any)
-	engineName := engineData["engineName"].(string)
 	var chain []string
 	if certificateRevocationListRequestDto.Delta {
 		s.log.With(zax.Get(ctx)...).Info("Getting Delta CRL", zap.String("authority", authority.Name), zap.String("uuid", authority.UUID))
@@ -404,6 +412,11 @@ func (s *AuthorityManagementAPIService) ValidateRAProfileAttributes(ctx context.
 }
 
 func (s *AuthorityManagementAPIService) RAProfileCallback(ctx context.Context, uuid string, engineName string) (model.ImplResponse, error) {
+	if !isValidVaultMountPath(engineName) {
+		return model.Response(http.StatusBadRequest, model.ErrorMessageDto{
+			Message: invalidRAProfileEngineMessage,
+		}), nil
+	}
 	authority, err := s.authorityRepo.FindAuthorityInstanceByUUID(uuid)
 	if err != nil {
 		s.log.With(zax.Get(ctx)...).Error(err.Error())
@@ -426,7 +439,16 @@ func (s *AuthorityManagementAPIService) RAProfileCallback(ctx context.Context, u
 	}
 
 	s.log.With(zax.Get(ctx)...).Info("Getting roles for callback", zap.String("authority", authority.Name), zap.String("uuid", authority.UUID))
-	roles, _ := client.Secrets.PkiListRoles(ctx, vault2.WithMountPath(engineName+"/"))
+	roles, err := client.Secrets.PkiListRoles(ctx, vault2.WithMountPath(engineName+"/"))
+	if err != nil {
+		s.log.With(zax.Get(ctx)...).Error(err.Error())
+		return model.Response(http.StatusBadRequest, model.ErrorMessageDto{
+			Message: "Failed to list roles for engine " + engineName,
+		}), nil
+	}
+	if roles == nil {
+		return model.Response(http.StatusOK, []model.AttributeContent{}), nil
+	}
 	var roleList []model.AttributeContent
 	for _, roleName := range roles.Data.Keys {
 
