@@ -7,7 +7,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/hashicorp/vault-client-go v0.4.3
-	github.com/lib/pq v1.11.2
+	github.com/lib/pq v1.12.3
 	github.com/moby/locker/v2 v2.0.0-20250523144334-4817df9fb2f2
 	github.com/oapi-codegen/runtime v1.2.0
 	github.com/prometheus/client_golang v1.23.2
