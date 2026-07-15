@@ -279,6 +279,29 @@ func TestValidVaultMountPath(t *testing.T) {
 	}
 }
 
+func TestValidVaultPathSegment(t *testing.T) {
+	tests := []struct {
+		segment string
+		want    bool
+	}{
+		{segment: "server-role", want: true},
+		{segment: "role_1.v2", want: true},
+		{segment: "foo/bar"},
+		{segment: "team/pki-root"},
+		{segment: ""},
+		{segment: "../server"},
+		{segment: " role"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.segment, func(t *testing.T) {
+			if got := isValidVaultPathSegment(test.segment); got != test.want {
+				t.Fatalf("isValidVaultPathSegment(%q) = %t, want %t", test.segment, got, test.want)
+			}
+		})
+	}
+}
+
 func engineAttribute(data map[string]any) model.RequestAttributeDto {
 	return model.RequestAttributeDto{
 		Uuid: model.RA_PROFILE_ENGINE_ATTR,

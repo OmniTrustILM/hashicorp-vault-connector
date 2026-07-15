@@ -439,7 +439,16 @@ func (s *AuthorityManagementAPIService) RAProfileCallback(ctx context.Context, u
 	}
 
 	s.log.With(zax.Get(ctx)...).Info("Getting roles for callback", zap.String("authority", authority.Name), zap.String("uuid", authority.UUID))
-	roles, _ := client.Secrets.PkiListRoles(ctx, vault2.WithMountPath(engineName+"/"))
+	roles, err := client.Secrets.PkiListRoles(ctx, vault2.WithMountPath(engineName+"/"))
+	if err != nil {
+		s.log.With(zax.Get(ctx)...).Error(err.Error())
+		return model.Response(http.StatusBadRequest, model.ErrorMessageDto{
+			Message: "Failed to list roles for engine " + engineName,
+		}), nil
+	}
+	if roles == nil {
+		return model.Response(http.StatusOK, []model.AttributeContent{}), nil
+	}
 	var roleList []model.AttributeContent
 	for _, roleName := range roles.Data.Keys {
 

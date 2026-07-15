@@ -314,6 +314,8 @@ func getRAProfilesAttributes() []Attribute {
 				ReadOnly:       false,
 				List:           true,
 				MultiSelect:    false,
+				// Workaround for OmniTrustILM/core#1804: core's strict list validation
+				// rejects valid OBJECT content. Revert once core#1804 is fixed.
 				ExtensibleList: true,
 			},
 		},
@@ -349,6 +351,8 @@ func getRAProfilesAttributes() []Attribute {
 				ReadOnly:       false,
 				List:           true,
 				MultiSelect:    false,
+				// Workaround for OmniTrustILM/core#1804: core's strict list validation
+				// rejects valid OBJECT content. Revert once core#1804 is fixed.
 				ExtensibleList: true,
 			},
 			AttributeCallback: &AttributeCallback{
