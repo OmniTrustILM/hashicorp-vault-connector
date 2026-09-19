@@ -15,7 +15,7 @@ require (
 	github.com/tidwall/gjson v1.19.0
 	go.uber.org/zap v1.28.0
 	gorm.io/datatypes v1.2.7
-	gorm.io/driver/postgres v1.6.2
+	gorm.io/driver/postgres v1.6.3
 	gorm.io/gorm v1.31.2
 )
 
