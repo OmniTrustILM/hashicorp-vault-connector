@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -47,7 +48,7 @@ func MigrateDB(config config.Config, db *gorm.DB) {
 	}
 
 	dbSchema := config.Database.Schema
-	if _, err := sqlDB.Exec("CREATE SCHEMA IF NOT EXISTS " + pq.QuoteIdentifier(dbSchema)); err != nil {
+	if err := ensureSchema(sqlDB, dbSchema); err != nil {
 		log.Error("Failed to create the database schema", zap.Error(err))
 		return
 	}
@@ -88,6 +89,21 @@ func MigrateDB(config config.Config, db *gorm.DB) {
 			log.Error("Migration failed", zap.Error(err))
 		}
 	}
+}
+
+// ensureSchema creates the schema only when it is missing. CREATE SCHEMA IF NOT EXISTS needs the CREATE privilege on
+// the database even when the schema exists, which a role given only a pre-provisioned schema does not have.
+func ensureSchema(db *sql.DB, schema string) error {
+	var exists bool
+	if err := db.QueryRow("SELECT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = $1)", schema).Scan(&exists); err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+	// The name comes from the deployment configuration and is quoted; PostgreSQL has no bind parameters for identifiers.
+	_, err := db.Exec("CREATE SCHEMA IF NOT EXISTS " + pq.QuoteIdentifier(schema)) // NOSONAR
+	return err
 }
 
 // schemaPinnedSource prepends a transaction-local search_path to every migration. golang-migrate sends a migration as
