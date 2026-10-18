@@ -11,7 +11,7 @@ require (
 	github.com/moby/locker/v2 v2.0.0-20250523144334-4817df9fb2f2
 	github.com/oapi-codegen/runtime v1.7.0
 	github.com/prometheus/client_golang v1.25.0
-	github.com/stretchr/objx v0.5.3
+	github.com/stretchr/objx v0.8.0
 	github.com/tidwall/gjson v1.20.0
 	go.uber.org/zap v1.28.0
 	gorm.io/datatypes v1.2.7
