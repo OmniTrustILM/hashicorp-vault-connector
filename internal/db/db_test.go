@@ -2,12 +2,17 @@ package db
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"net"
 	"os"
 	"testing"
 	"testing/fstest"
 
+	"github.com/OmniTrustILM/hashicorp-vault-connector/internal/config"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 func TestSearchPathPrefixIsTransactionLocalAndQuoted(t *testing.T) {
@@ -64,4 +69,39 @@ func TestSchemaPinnedSourceKeepsTheMissingMigrationError(t *testing.T) {
 	if _, _, err := pinned.ReadDown(1); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("ReadDown error = %v, want os.ErrNotExist", err)
 	}
+}
+
+func TestMigrateDBReturnsTheErrorWhenTheDatabaseIsUnreachable(t *testing.T) {
+	cfg := config.Config{}
+	cfg.Database.Host = "127.0.0.1"
+	cfg.Database.Port = closedPort(t)
+	cfg.Database.Schema = "hvault"
+	dsn := fmt.Sprintf("host=%s port=%s user=hvault password=hvault dbname=hvault sslmode=disable connect_timeout=2",
+		cfg.Database.Host, cfg.Database.Port)
+	// Without the automatic ping, opening succeeds and the failure surfaces in MigrateDB, as when the database goes away
+	// between connecting and migrating.
+	conn, err := gorm.Open(postgres.New(postgres.Config{DSN: dsn}), &gorm.Config{DisableAutomaticPing: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := MigrateDB(cfg, conn); err == nil {
+		t.Fatal("MigrateDB returned no error for an unreachable database")
+	}
+}
+
+func closedPort(t *testing.T) string {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return port
 }

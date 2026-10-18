@@ -10,7 +10,6 @@ import (
 	"github.com/OmniTrustILM/hashicorp-vault-connector/internal/config"
 	"github.com/OmniTrustILM/hashicorp-vault-connector/internal/logger"
 	"github.com/lib/pq"
-	"go.uber.org/zap"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -37,20 +36,18 @@ func ConnectDB(config config.Config) (db *gorm.DB, err error) {
 	return
 }
 
-func MigrateDB(config config.Config, db *gorm.DB) {
+func MigrateDB(config config.Config, db *gorm.DB) error {
 	log.Info("Migrating database")
 
 	// Convert *gorm.DB to *sql.DB
 	sqlDB, err := db.DB()
 	if err != nil {
-		log.Error("Unable to get *sql.DB from GORM", zap.Error(err))
-		return
+		return fmt.Errorf("get *sql.DB from GORM: %w", err)
 	}
 
 	dbSchema := config.Database.Schema
 	if err := ensureSchema(sqlDB, dbSchema); err != nil {
-		log.Error("Failed to create the database schema", zap.Error(err))
-		return
+		return fmt.Errorf("ensure schema %s: %w", dbSchema, err)
 	}
 
 	// Wrap the *sql.DB with the postgres driver for golang-migrate. The schema is named rather than read from
@@ -60,14 +57,12 @@ func MigrateDB(config config.Config, db *gorm.DB) {
 		MigrationsTable: fmt.Sprintf("%s_migrations", dbSchema),
 	})
 	if err != nil {
-		log.Error("Failed to create postgres driver for migrations", zap.Error(err))
-		return
+		return fmt.Errorf("create postgres driver for migrations: %w", err)
 	}
 
 	migrations, err := (&file.File{}).Open("file://migrations")
 	if err != nil {
-		log.Error("Failed to open the migrations", zap.Error(err))
-		return
+		return fmt.Errorf("open migrations: %w", err)
 	}
 
 	// Create a new Migrate instance using the opened DB
@@ -78,17 +73,14 @@ func MigrateDB(config config.Config, db *gorm.DB) {
 		driver,
 	)
 	if err != nil {
-		log.Error("Failed to create migrate instance", zap.Error(err))
-		return
+		return fmt.Errorf("create migrate instance: %w", err)
 	}
 
 	// Run the migrations
-	if err := m.Up(); err != nil {
-		// Only log if it's something other than "no change"
-		if !errors.Is(err, migrate.ErrNoChange) {
-			log.Error("Migration failed", zap.Error(err))
-		}
+	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		return fmt.Errorf("migrate: %w", err)
 	}
+	return nil
 }
 
 // ensureSchema creates the schema only when it is missing. CREATE SCHEMA IF NOT EXISTS needs the CREATE privilege on
