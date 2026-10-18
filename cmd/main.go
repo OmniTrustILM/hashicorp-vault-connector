@@ -18,7 +18,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/gorilla/mux"
@@ -36,18 +35,6 @@ func main() {
 	c := config.Get()
 	log.Info("Starting HashiCorp-Vault-Connector", zap.String("version", version))
 	conn, _ := db.ConnectDB(c)
-	schema := config.Get().Database.Schema
-
-	err := conn.Exec("CREATE SCHEMA IF NOT EXISTS " + pq.QuoteIdentifier(schema)).Error
-	if err != nil {
-		log.Error("Error creating schema", zap.Error(err))
-	}
-
-	err = conn.Exec("SET search_path TO " + pq.QuoteIdentifier(schema)).Error
-	if err != nil {
-		log.Error("Error setting search_path", zap.Error(err))
-	}
-
 	db.MigrateDB(c, conn)
 	discoveryRepo, _ := db.NewDiscoveryRepository(conn)
 	authorityRepo, _ := db.NewAuthorityRepository(conn)
@@ -119,7 +106,7 @@ func main() {
 	topMux.Handle("/v2/health/readiness", logMiddleware(v2commonHealthHandler))
 	topMux.Handle("/v2/health/liveness", logMiddleware(v2commonHealthHandler))
 
-	err = http.ListenAndServe(":"+c.Server.Port, topMux)
+	err := http.ListenAndServe(":"+c.Server.Port, topMux)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
