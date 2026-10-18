@@ -1,4 +1,4 @@
-create table authority_instances
+create table if not exists authority_instances
 (
     id              serial,
     uuid            varchar(255) not null unique,
@@ -13,7 +13,7 @@ create table authority_instances
     primary key (id)
 );
 
-create table certificates
+create table if not exists certificates
 (
     id             serial,
     serial_number  varchar not null,
@@ -23,10 +23,10 @@ create table certificates
     primary key (id)
 );
 
-CREATE INDEX index_certificates_serial_number ON certificates (serial_number);
-CREATE INDEX index_certificates_uuid ON certificates (uuid);
+CREATE INDEX IF NOT EXISTS index_certificates_serial_number ON certificates (serial_number);
+CREATE INDEX IF NOT EXISTS index_certificates_uuid ON certificates (uuid);
 
-create table discoveries
+create table if not exists discoveries
 (
     id     serial,
     uuid   varchar not null unique,
@@ -36,7 +36,7 @@ create table discoveries
     primary key (id)
 );
 
-create table discovery_certificates
+create table if not exists discovery_certificates
 (
     certificate_id bigint not null,
     discovery_id   bigint not null,

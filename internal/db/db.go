@@ -1,10 +1,15 @@
 package db
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
+	"io"
+	"strings"
+
 	"github.com/OmniTrustILM/hashicorp-vault-connector/internal/config"
 	"github.com/OmniTrustILM/hashicorp-vault-connector/internal/logger"
+	"github.com/lib/pq"
 	"go.uber.org/zap"
 
 	"gorm.io/driver/postgres"
@@ -13,7 +18,8 @@ import (
 
 	"github.com/golang-migrate/migrate/v4"
 	migratepostgres "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/golang-migrate/migrate/v4/source"
+	"github.com/golang-migrate/migrate/v4/source/file"
 )
 
 var log = logger.Get()
@@ -41,9 +47,16 @@ func MigrateDB(config config.Config, db *gorm.DB) {
 		return
 	}
 
-	// Wrap the *sql.DB with the postgres driver for golang-migrate
 	dbSchema := config.Database.Schema
+	if err := ensureSchema(sqlDB, dbSchema); err != nil {
+		log.Error("Failed to create the database schema", zap.Error(err))
+		return
+	}
+
+	// Wrap the *sql.DB with the postgres driver for golang-migrate. The schema is named rather than read from
+	// CURRENT_SCHEMA(), which depends on the search_path of whichever pooled connection answers.
 	driver, err := migratepostgres.WithInstance(sqlDB, &migratepostgres.Config{
+		SchemaName:      dbSchema,
 		MigrationsTable: fmt.Sprintf("%s_migrations", dbSchema),
 	})
 	if err != nil {
@@ -51,9 +64,16 @@ func MigrateDB(config config.Config, db *gorm.DB) {
 		return
 	}
 
+	migrations, err := (&file.File{}).Open("file://migrations")
+	if err != nil {
+		log.Error("Failed to open the migrations", zap.Error(err))
+		return
+	}
+
 	// Create a new Migrate instance using the opened DB
-	m, err := migrate.NewWithDatabaseInstance(
-		"file://migrations",
+	m, err := migrate.NewWithInstance(
+		"file",
+		schemaPinnedSource{Driver: migrations, prefix: searchPathPrefix(dbSchema)},
 		config.Database.Name,
 		driver,
 	)
@@ -69,4 +89,53 @@ func MigrateDB(config config.Config, db *gorm.DB) {
 			log.Error("Migration failed", zap.Error(err))
 		}
 	}
+}
+
+// ensureSchema creates the schema only when it is missing. CREATE SCHEMA IF NOT EXISTS needs the CREATE privilege on
+// the database even when the schema exists, which a role given only a pre-provisioned schema does not have.
+func ensureSchema(db *sql.DB, schema string) error {
+	var exists bool
+	if err := db.QueryRow("SELECT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = $1)", schema).Scan(&exists); err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+	// The name comes from the deployment configuration and is quoted; PostgreSQL has no bind parameters for identifiers.
+	_, err := db.Exec("CREATE SCHEMA IF NOT EXISTS " + pq.QuoteIdentifier(schema)) // NOSONAR
+	return err
+}
+
+// schemaPinnedSource prepends a transaction-local search_path to every migration. golang-migrate sends a migration as
+// one simple-protocol query, which PostgreSQL runs as one transaction and PgBouncer keeps on one server connection, so
+// the migration's unqualified names resolve to the connector's schema without leaving the setting on the connection.
+// That makes every migration one transaction: it cannot use CREATE INDEX CONCURRENTLY, statements after an explicit
+// COMMIT lose the schema, and the driver's MultiStatementEnabled must stay off.
+type schemaPinnedSource struct {
+	source.Driver
+	prefix string
+}
+
+func (s schemaPinnedSource) ReadUp(version uint) (io.ReadCloser, string, error) {
+	r, identifier, err := s.Driver.ReadUp(version)
+	return s.pin(r, err), identifier, err
+}
+
+func (s schemaPinnedSource) ReadDown(version uint) (io.ReadCloser, string, error) {
+	r, identifier, err := s.Driver.ReadDown(version)
+	return s.pin(r, err), identifier, err
+}
+
+func (s schemaPinnedSource) pin(r io.ReadCloser, err error) io.ReadCloser {
+	if err != nil {
+		return r
+	}
+	return struct {
+		io.Reader
+		io.Closer
+	}{io.MultiReader(strings.NewReader(s.prefix), r), r}
+}
+
+func searchPathPrefix(schema string) string {
+	return fmt.Sprintf("SELECT set_config('search_path', %s, true);\n", pq.QuoteLiteral(pq.QuoteIdentifier(schema)))
 }
